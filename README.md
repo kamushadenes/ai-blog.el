@@ -1,6 +1,6 @@
 # ai-blog.el
 
-ai-blog.el is an Emacs package that leverages the power of OpenAI's ChatGPT, OpenAI's DALL-E, [Pexels](https://www.pexels.com/) Google Images (through [SerpApi](https://serpapi.com/)) and Bing Image Search to streamline the generation of blog posts and images in Hugo. The package provides functions to create content, generate tags, and insert images in your blog posts.
+ai-blog.el is an Emacs package that leverages the power of OpenAI's ChatGPT, OpenAI's DALL-E, [Pexels](https://www.pexels.com/), Google Images (through [SerpApi](https://serpapi.com/)) and Bing Image Search to streamline the generation of blog posts and images in Hugo. The package provides functions to create content, generate tags, and insert images in your blog posts.
 
 ## Features
 
