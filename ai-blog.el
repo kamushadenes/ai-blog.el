@@ -16,6 +16,7 @@
 (require 'url)
 (require 'json)
 (require 'thingatpt)
+(require 'seq)
 
 (defgroup ai-blog nil
   "Blog post generation using ChatGPT."
@@ -27,7 +28,17 @@
   :group 'ai-blog)
 
 (defcustom ai-blog-pexels-api-key nil
-  "The API key to use for the pexels API."
+  "The API key to use for the Pexels API."
+  :type 'string
+  :group 'ai-blog)
+
+(defcustom ai-blog-google-api-key nil
+  "The API key to use for the Google API."
+  :type 'string
+  :group 'ai-blog)
+
+(defcustom ai-blog-bing-api-key nil
+  "The API key to use for the Bing API."
   :type 'string
   :group 'ai-blog)
 
@@ -42,7 +53,17 @@
   :group 'ai-blog)
 
 (defcustom ai-blog-pexels-url "https://api.pexels.com/v1/search"
-  "The URL to use for the pexels API."
+  "The URL to use for the Pexels API."
+  :type 'string
+  :group 'ai-blog)
+
+(defcustom ai-blog-google-url "https://serpapi.com/search.json"
+  "The URL to use for the Google API."
+  :type 'string
+  :group 'ai-blog)
+
+(defcustom ai-blog-bing-url "https://api.bing.microsoft.com/v7.0/images/search"
+  "The URL to use for the Bing API."
   :type 'string
   :group 'ai-blog)
 
@@ -53,6 +74,16 @@
 
 (defcustom ai-blog-pexels-image-count 10
   "The number of images to retrieve from Pexels."
+  :type 'integer
+  :group 'ai-blog)
+
+(defcustom ai-blog-google-image-count 10
+  "The number of images to retrieve from Google."
+  :type 'integer
+  :group 'ai-blog)
+
+(defcustom ai-blog-bing-image-count 10
+  "The number of images to retrieve from Bing."
   :type 'integer
   :group 'ai-blog)
 
@@ -149,22 +180,22 @@
 
 ;; image generation
 
-(defun ai-blog--dall-e-get-request-args-list (params)
+(defun ai-blog--get-request-args-list (params)
   "Get the request args list for the DALL-E API using PARAMS."
   (concat "?"
 	  (combine-and-quote-strings
 	   (mapcar (lambda(x) (concat (substring (symbol-name (car x)) 1) "=" (cadr x))) (seq-partition params 2))
 	   "&")))
 
-(defun ai-blog--send-json-request (url method params token)
+(defun ai-blog--send-json-request (url method params header token)
   "Send a METHOD request to the specified URL passing PARAMS and authenticating with TOKEN."
   (let* ((url-request-method method)
-         (url-request-extra-headers `(("Authorization" . ,token)
+         (url-request-extra-headers `((,header . ,token)
                                       ("Content-Type" . "application/json")))
          (url-request-data (json-encode params))
-	 (url (if (equal method "GET")
-		  (concat url "/" (ai-blog--dall-e-get-request-args-list params))
-		url))
+         (url (if (equal method "GET")
+	          (concat url "/" (ai-blog--get-request-args-list params))
+	        url))
          (buffer (url-retrieve-synchronously url t)))
     (if (not buffer)
         (error "Failed to send request to %s" url))
@@ -172,6 +203,7 @@
       (goto-char (point-min))
       (re-search-forward "^$")
       (json-read))))
+
 
 (defun ai-blog--resolve-secret (secret)
   "Resolve SECRET. If SECRET is a function, call it and return the result. Otherwise, return SECRET."
@@ -188,7 +220,7 @@
                   :prompt prompt
 		  :n n))
          (secret (ai-blog--resolve-secret ai-blog-dall-e-api-key))
-         (json-response (ai-blog--send-json-request ai-blog-dall-e-url "POST" params (concat "Bearer " secret)))
+         (json-response (ai-blog--send-json-request ai-blog-dall-e-url "POST" params "Authorization" (concat "Bearer " secret)))
          (url-list (cdr (assoc 'data json-response))))
     (vconcat (mapcar (lambda (photo)
                        (list
@@ -198,7 +230,7 @@
                      url-list))))
 
 (defun ai-blog--pexels-request-images (prompt n)
-  "Request N images from the pexels API using PROMPT."
+  "Request N images from the Pexels API using PROMPT."
   (unless ai-blog-pexels-api-key
     (error "Pexels API key not set"))
   (message "Searching images on Pexels...")
@@ -207,7 +239,7 @@
 		  :per_page (number-to-string n)
 		  :page "1"))
          (secret (ai-blog--resolve-secret ai-blog-pexels-api-key))
-	 (json-response (ai-blog--send-json-request ai-blog-pexels-url "GET" params secret))
+	 (json-response (ai-blog--send-json-request ai-blog-pexels-url "GET" params "Authorization" secret))
 	 (url-list (cdr (assoc 'photos  json-response))))
     (vconcat (mapcar (lambda (photo)
 	               (list
@@ -218,7 +250,40 @@
                                            (cdr (assoc 'photographer photo))))))
                      url-list))))
 
-(assoc 'cu (list (cons 'url "batata") (cons 'cu "porra")))
+(defun ai-blog--google-request-images (prompt n)
+  "Request N images from the Google API using PROMPT."
+  (message "Searching images on Google...")
+  (let* ((secret (ai-blog--resolve-secret ai-blog-google-api-key))
+         (params (list
+		  :q prompt
+		  :engine "google_images"
+		  :ijn "0"
+                  :api_key secret))
+	 (json-response (ai-blog--send-json-request ai-blog-google-url "GET" params "x" nil))
+	 (url-list (seq-take (cdr (assoc 'images_results  json-response)) n)))
+    (vconcat (mapcar (lambda (photo)
+	               (list
+                        (cons 'url (cdr (assoc 'original photo)))
+                        (cons 'longdesc (cdr (assoc 'link photo)))
+                        (cons 'alt (format "%s on Google Images"
+                                           (cdr (assoc 'alt photo))))))
+                     url-list))))
+
+(defun ai-blog--bing-request-images (prompt n)
+  "Request N images from the Bing API using PROMPT."
+  (message "Searching images on Bing...")
+  (let* ((secret (ai-blog--resolve-secret ai-blog-bing-api-key))
+         (params (list
+		  :q prompt))
+	 (json-response (ai-blog--send-json-request ai-blog-bing-url "GET" params "Ocp-Apim-Subscription-Key" secret))
+	 (url-list (seq-take (cdr (assoc 'value json-response)) n)))
+    (vconcat (mapcar (lambda (photo)
+	               (list
+                        (cons 'url (cdr (assoc 'contentUrl photo)))
+                        (cons 'longdesc (cdr (assoc 'hostPageUrl photo)))
+                        (cons 'alt (format "%s on Bing"
+                                           (cdr (assoc 'name photo))))))
+                     url-list))))
 
 (defun ai-blog--insert-image-in-menu (&optional url i)
   "Insert an image from URL in the menu buffer with index I."
@@ -264,15 +329,37 @@
   (ai-blog--dall-e-helper prompt ai-blog-dall-e-image-count))
 
 (defun ai-blog--pexels-helper (prompt n)
-  "Helper function for generating N images using Pexels API with prompt PROMPT."
+  "Helper function for retrieving N images using Pexels API with prompt PROMPT."
   (let ((images (ai-blog--pexels-request-images prompt n)))
     (ai-blog--choose-image-from-menu images)))
 
 ;;;###autoload
 (defun ai-blog-generate-image-pexels (prompt)
-  "Generate an image for a blog post using Pexels API with PROMPT."
+  "Retrieve an image for a blog post using Pexels API with PROMPT."
   (interactive)
   (ai-blog--pexels-helper prompt ai-blog-pexels-image-count))
+
+(defun ai-blog--google-helper (prompt n)
+  "Helper function for retrieving N images using Google API with prompt PROMPT."
+  (let ((images (ai-blog--google-request-images prompt n)))
+    (ai-blog--choose-image-from-menu images)))
+
+;;;###autoload
+(defun ai-blog-generate-image-google (prompt)
+  "Retrieve an image for a blog post using Google API with PROMPT."
+  (interactive)
+  (ai-blog--google-helper prompt ai-blog-google-image-count))
+
+(defun ai-blog--bing-helper (prompt n)
+  "Helper function for retrieving N images using Bing API with prompt PROMPT."
+  (let ((images (ai-blog--bing-request-images prompt n)))
+    (ai-blog--choose-image-from-menu images)))
+
+;;;###autoload
+(defun ai-blog-generate-image-bing (prompt)
+  "Retrieve an image for a blog post using Bing API with PROMPT."
+  (interactive)
+  (ai-blog--bing-helper prompt ai-blog-bing-image-count))
 
 (defun ai-blog-download-image (url)
   "Download an image from URL."
@@ -315,6 +402,8 @@
         easy-hugo-image-directory
         (file-name-nondirectory file))))))
 
+;; image functions
+
 ;;;###autoload
 (defun ai-blog-insert-image-dall-e ()
   "Insert a image for a blog post using DALL-E API."
@@ -326,12 +415,32 @@
 
 ;;;###autoload
 (defun ai-blog-insert-image-pexels ()
-  "Insert a image for a blog post using pexels API."
+  "Insert a image for a blog post using Pexels API."
   (interactive)
   (let ((prompt (read-string "Enter a prompt: ")))
     (ai-blog-insert-image
      (current-buffer)
      (ai-blog-generate-image-pexels prompt))))
+
+;;;###autoload
+(defun ai-blog-insert-image-google ()
+  "Insert a image for a blog post using Google API."
+  (interactive)
+  (let ((prompt (read-string "Enter a prompt: ")))
+    (ai-blog-insert-image
+     (current-buffer)
+     (ai-blog-generate-image-google prompt))))
+
+;;;###autoload
+(defun ai-blog-insert-image-bing ()
+  "Insert a image for a blog post using Bing API."
+  (interactive)
+  (let ((prompt (read-string "Enter a prompt: ")))
+    (ai-blog-insert-image
+     (current-buffer)
+     (ai-blog-generate-image-bing prompt))))
+
+;; featured image functions
 
 ;;;###autoload
 (defun ai-blog-insert-featured-image-dall-e ()
@@ -342,10 +451,24 @@
 
 ;;;###autoload
 (defun ai-blog-insert-featured-image-pexels ()
-  "Insert a featured image for a blog post using pexels API."
+  "Insert a featured image for a blog post using Pexels API."
   (interactive)
   (let ((prompt (read-string "Enter a prompt: ")))
     (ai-blog-insert-featured-image (current-buffer) (ai-blog-generate-image-pexels prompt))))
+
+;;;###autoload
+(defun ai-blog-insert-featured-image-google ()
+  "Insert a featured image for a blog post using Google API."
+  (interactive)
+  (let ((prompt (read-string "Enter a prompt: ")))
+    (ai-blog-insert-featured-image (current-buffer) (ai-blog-generate-image-google prompt))))
+
+;;;###autoload
+(defun ai-blog-insert-featured-image-bing ()
+  "Insert a featured image for a blog post using Bing API."
+  (interactive)
+  (let ((prompt (read-string "Enter a prompt: ")))
+    (ai-blog-insert-featured-image (current-buffer) (ai-blog-generate-image-bing prompt))))
 
 (provide 'ai-blog)
 

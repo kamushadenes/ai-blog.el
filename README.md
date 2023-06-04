@@ -1,6 +1,6 @@
 # ai-blog.el
 
-ai-blog.el is an Emacs package that leverages the power of OpenAI's ChatGPT, OpenAI's DALL-E and [Pexels](https://www.pexels.com/) to streamline the generation of blog posts and images in Hugo. The package provides functions to create content, generate tags, and insert images in your blog posts.
+ai-blog.el is an Emacs package that leverages the power of OpenAI's ChatGPT, OpenAI's DALL-E, [Pexels](https://www.pexels.com/) Google Images (through [SerpApi](https://serpapi.com/)) and Bing Image Search to streamline the generation of blog posts and images in Hugo. The package provides functions to create content, generate tags, and insert images in your blog posts.
 
 ## Features
 
@@ -12,6 +12,8 @@ ai-blog.el is an Emacs package that leverages the power of OpenAI's ChatGPT, Ope
 
 - [emacs-easy-hugo](https://github.com/masasam/emacs-easy-hugo)
 - [gptel](https://github.com/karthink/gptel)
+
+You also need API keys for the services you want to use.
 
 ## Installation
 
@@ -35,12 +37,21 @@ Load it. For doom-emacs:
 
 ## Configuration
 
-First, make sure you have API keys for DALL-E and Pexels APIs. You can set them by adding the following lines to your configuration:
+First, make sure you have API keys for the services you want to use. You can set them by adding the following lines to your configuration:
 
 ``` emacs-lisp
 (setq ai-blog-dall-e-api-key "your_api_key_here")
 (setq ai-blog-pexels-api-key "your_api_key_here")
+(setq ai-blog-google-api-key "your_api_key_here")
+(setq ai-blog-bing-api-key "your_api_key_here")
 ```
+
+To get the API keys, follow each platform's instructions:
+
+- [DALL-E](https://platform.openai.com/account/api-keys)
+- [Pexels](https://help.pexels.com/hc/en-us/articles/900004904026-How-do-I-get-an-API-key-)
+- [Google (through SerpApi)](https://serpapi.com/users/welcome)
+- [Bing](https://www.microsoft.com/en-us/bing/apis/bing-image-search-api)
 
 ### Changing featured image field name
 
@@ -59,6 +70,8 @@ To change that:
 ```emacs-lisp
 (setq ai-blog-dall-e-image-count 10)
 (setq ai-blog-pexels-image-count 20)
+(setq ai-blog-google-image-count 20)
+(setq ai-blog-bing-image-count 20)
 ```
 
 ## Usage
@@ -96,6 +109,8 @@ To insert an image into your blog post:
 ``` emacs-lisp
 (ai-blog-insert-image-dall-e)
 (ai-blog-insert-image-pexels)
+(ai-blog-insert-image-google)
+(ai-blog-insert-image-bing)
 ```
 
 To insert a featured image in your blog post:
@@ -103,6 +118,8 @@ To insert a featured image in your blog post:
 ``` emacs-lisp
 (ai-blog-insert-featured-image-dall-e)
 (ai-blog-insert-featured-image-pexels)
+(ai-blog-insert-featured-image-google)
+(ai-blog-insert-featured-image-bing)
 ```
 
 ## Contributing
